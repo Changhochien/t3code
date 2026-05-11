@@ -1,11 +1,12 @@
-import type { ServerProvider } from "@t3tools/contracts";
+import { ProviderDriverKind, ProviderInstanceId, type ServerProvider } from "@t3tools/contracts";
 import { describe, expect, it } from "vitest";
 
 import { resolveSelectableProvider } from "./providerModels";
 
 const TEST_PROVIDERS: ReadonlyArray<ServerProvider> = [
   {
-    provider: "opencode",
+    instanceId: ProviderInstanceId.make("opencode"),
+    driver: ProviderDriverKind.make("opencode"),
     enabled: true,
     installed: true,
     version: "1.0.0",
@@ -17,7 +18,8 @@ const TEST_PROVIDERS: ReadonlyArray<ServerProvider> = [
     models: [],
   },
   {
-    provider: "pi",
+    instanceId: ProviderInstanceId.make("pi"),
+    driver: ProviderDriverKind.make("pi"),
     enabled: false,
     installed: true,
     version: "0.68.0",
@@ -32,10 +34,12 @@ const TEST_PROVIDERS: ReadonlyArray<ServerProvider> = [
 
 describe("resolveSelectableProvider", () => {
   it("preserves an explicitly selected provider even when it is disabled", () => {
-    expect(resolveSelectableProvider(TEST_PROVIDERS, "pi")).toBe("pi");
+    const result = resolveSelectableProvider(TEST_PROVIDERS, ProviderInstanceId.make("pi"));
+    expect(result).toBe(ProviderDriverKind.make("pi"));
   });
 
   it("falls back to an enabled provider when the requested provider is missing", () => {
-    expect(resolveSelectableProvider(TEST_PROVIDERS, "codex")).toBe("opencode");
+    const result = resolveSelectableProvider(TEST_PROVIDERS, ProviderInstanceId.make("codex"));
+    expect(result).toBe(ProviderDriverKind.make("opencode"));
   });
 });

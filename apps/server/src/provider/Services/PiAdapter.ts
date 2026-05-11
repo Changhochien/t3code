@@ -10,7 +10,7 @@
  *
  * @module PiAdapter
  */
-import { Context } from "effect";
+import * as Context from "effect/Context";
 
 import type { ProviderAdapterError } from "../Errors.ts";
 import type { ProviderAdapterShape } from "./ProviderAdapter.ts";
@@ -18,9 +18,7 @@ import type { ProviderAdapterShape } from "./ProviderAdapter.ts";
 /**
  * PiAdapterShape - Service API for the pi provider adapter.
  */
-export interface PiAdapterShape extends ProviderAdapterShape<ProviderAdapterError> {
-  readonly provider: "pi";
-}
+export interface PiAdapterShape extends ProviderAdapterShape<ProviderAdapterError> {}
 
 /**
  * PiAdapter - Service tag for pi provider adapter operations.

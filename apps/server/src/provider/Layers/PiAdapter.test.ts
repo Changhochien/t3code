@@ -5,9 +5,12 @@ import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
-import { Effect, Fiber, Layer, Stream } from "effect";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Layer from "effect/Layer";
+import * as Stream from "effect/Stream";
 
-import { ProviderInstanceId, ThreadId } from "@t3tools/contracts";
+import { ProviderDriverKind, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
 
 import { ServerSettingsService } from "../../serverSettings.ts";
 import { PiAdapter } from "../Services/PiAdapter.ts";
@@ -132,7 +135,7 @@ it.layer(PiAdapterTestLayer)("PiAdapterLive", (it) => {
 
       const session = yield* adapter.startSession({
         threadId,
-        provider: "pi",
+        provider: ProviderDriverKind.make("pi"),
         cwd: process.cwd(),
         runtimeMode: "full-access",
         modelSelection: {
@@ -190,7 +193,7 @@ it.layer(PiAdapterTestLayer)("PiAdapterLive", (it) => {
 
       yield* adapter.startSession({
         threadId,
-        provider: "pi",
+        provider: ProviderDriverKind.make("pi"),
         cwd: process.cwd(),
         runtimeMode: "full-access",
         modelSelection: {
@@ -206,9 +209,7 @@ it.layer(PiAdapterTestLayer)("PiAdapterLive", (it) => {
         modelSelection: {
           instanceId: ProviderInstanceId.make("pi"),
           model: "minimax/MiniMax-M2.7",
-          options: {
-            effort: "high",
-          },
+          options: [{ id: "effort", value: "high" }],
         },
       });
 
@@ -241,7 +242,7 @@ it.layer(PiAdapterTestLayer)("PiAdapterLive", (it) => {
 
       yield* adapter.startSession({
         threadId,
-        provider: "pi",
+        provider: ProviderDriverKind.make("pi"),
         cwd: process.cwd(),
         runtimeMode: "full-access",
         modelSelection: {

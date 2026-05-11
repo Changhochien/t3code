@@ -4271,7 +4271,8 @@ describe("ChatView timeline estimator parity (full app)", () => {
           providers: [
             {
               ...nextFixture.serverConfig.providers[0]!,
-              provider: "codex",
+              driver: ProviderDriverKind.make("codex"),
+              instanceId: ProviderInstanceId.make("codex"),
               enabled: false,
               status: "disabled",
               models: [
@@ -4279,18 +4280,15 @@ describe("ChatView timeline estimator parity (full app)", () => {
                   slug: "gpt-5",
                   name: "GPT-5",
                   isCustom: false,
-                  capabilities: {
-                    supportsFastMode: true,
-                    supportsThinkingToggle: false,
-                    reasoningEffortLevels: [],
-                    promptInjectedEffortLevels: [],
-                    contextWindowOptions: [],
-                  },
+                  capabilities: createModelCapabilities({
+                    optionDescriptors: [],
+                  }),
                 },
               ],
             },
             {
-              provider: "pi",
+              instanceId: ProviderInstanceId.make("pi"),
+              driver: ProviderDriverKind.make("pi"),
               enabled: true,
               installed: true,
               version: "0.68.0",
@@ -4302,13 +4300,20 @@ describe("ChatView timeline estimator parity (full app)", () => {
                   slug: "minimax/MiniMax-M2.7",
                   name: "MiniMax M2.7",
                   isCustom: false,
-                  capabilities: {
-                    supportsFastMode: false,
-                    supportsThinkingToggle: false,
-                    reasoningEffortLevels: [],
-                    promptInjectedEffortLevels: [],
-                    contextWindowOptions: [],
-                  },
+                  capabilities: createModelCapabilities({
+                    optionDescriptors: [
+                      {
+                        id: "effort",
+                        label: "Effort Level",
+                        type: "select",
+                        options: [
+                          { id: "low", label: "Low" },
+                          { id: "medium", label: "Medium", isDefault: true },
+                          { id: "high", label: "High" },
+                        ],
+                      },
+                    ],
+                  }),
                 },
               ],
               slashCommands: [],

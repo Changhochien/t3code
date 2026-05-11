@@ -13,6 +13,7 @@ import {
   type CanonicalRequestType,
   EventId,
   ProviderDriverKind,
+  ProviderInstanceId,
   type ProviderApprovalDecision,
   type ProviderRuntimeEvent,
   type ProviderRuntimeTurnStatus,
@@ -24,19 +25,19 @@ import {
   TurnId,
   type UserInputQuestion,
 } from "@t3tools/contracts";
-import {
-  Cause,
-  DateTime,
-  Deferred,
-  Effect,
-  Exit,
-  Fiber,
-  Layer,
-  Queue,
-  Random,
-  Stream,
-} from "effect";
+import * as Cause from "effect/Cause";
+import * as DateTime from "effect/DateTime";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Fiber from "effect/Fiber";
+import * as Layer from "effect/Layer";
+import * as Queue from "effect/Queue";
+import * as Random from "effect/Random";
+import * as Ref from "effect/Ref";
+import * as Stream from "effect/Stream";
 
+import { getModelSelectionStringOptionValue } from "@t3tools/shared/model";
 import { ServerSettingsService } from "../../serverSettings.ts";
 import {
   ProviderAdapterProcessError,
@@ -51,6 +52,7 @@ import { type EventNdjsonLogger } from "./EventNdjsonLogger.ts";
 import { PiQueryRuntime } from "./PiQueryRuntime.ts";
 
 const PROVIDER = ProviderDriverKind.make("pi");
+const PI_INSTANCE_ID = ProviderInstanceId.make("pi");
 
 interface PiTurnState {
   readonly turnId: TurnId;
@@ -1219,7 +1221,7 @@ const makePiAdapter = Effect.fn("makePiAdapter")(function* (options?: PiAdapterL
     );
     const piBinaryPath = piSettings.binaryPath || options?.piBinaryPath;
     const modelSelection =
-      input.modelSelection?.provider === "pi" ? input.modelSelection : undefined;
+      input.modelSelection?.instanceId === PI_INSTANCE_ID ? input.modelSelection : undefined;
 
     // Parse the model slug to extract provider and model
     // Model slug format can be "provider/model" (e.g., "minimax/MiniMax-M2.7") or just "model"
@@ -1390,9 +1392,8 @@ const makePiAdapter = Effect.fn("makePiAdapter")(function* (options?: PiAdapterL
     });
 
     const requestedEffort =
-      input.modelSelection?.provider === PROVIDER &&
-      typeof input.modelSelection.options?.effort === "string"
-        ? input.modelSelection.options.effort.trim()
+      input.modelSelection?.instanceId === PI_INSTANCE_ID
+        ? (getModelSelectionStringOptionValue(input.modelSelection, "effort") ?? "")
         : "";
     if (requestedEffort.length > 0) {
       yield* Effect.tryPromise({

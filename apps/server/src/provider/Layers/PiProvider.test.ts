@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
-import { Effect, Layer, Sink, Stream } from "effect";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as PlatformError from "effect/PlatformError";
+import * as Sink from "effect/Sink";
+import * as Stream from "effect/Stream";
 import { ChildProcessSpawner } from "effect/unstable/process";
 
 import { ServerSettingsService } from "../../serverSettings.ts";
@@ -159,7 +162,7 @@ it.layer(
       const provider = yield* PiProvider;
       const snapshot = yield* provider.refresh;
 
-      assert.equal(snapshot.provider, "pi");
+      assert.equal(snapshot.instanceId, "pi");
       assert.equal(snapshot.status, "ready");
       assert.equal(snapshot.installed, true);
       assert.equal(snapshot.version, "0.68.0");

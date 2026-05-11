@@ -4,18 +4,23 @@
  * @module PiProviderLive
  */
 import type {
-  ModelCapabilities,
   PiSettings,
-  ProviderDriverKind,
-  ServerProvider,
   ServerProviderModel,
   ServerProviderSkill,
   ServerProviderSlashCommand,
 } from "@t3tools/contracts";
+import { ProviderDriverKind, ProviderInstanceId } from "@t3tools/contracts";
+import * as Cause from "effect/Cause";
+import * as Data from "effect/Data";
+import * as DateTime from "effect/DateTime";
+import * as Effect from "effect/Effect";
+import * as Equal from "effect/Equal";
+import * as Layer from "effect/Layer";
 import * as PlatformError from "effect/PlatformError";
-import { Cause, Data, Effect, Equal, Layer, Stream } from "effect";
+import * as Stream from "effect/Stream";
 import { ChildProcess } from "effect/unstable/process";
 
+import { createModelCapabilities } from "@t3tools/shared/model";
 import { runProcess } from "../../processRunner.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
@@ -27,23 +32,34 @@ import {
   parseGenericCliVersion,
   providerModelsFromSettings,
   spawnAndCollect,
+  type ServerProviderDraft,
+  type ServerProviderPresentation,
 } from "../providerSnapshot.ts";
 import { PiProvider } from "../Services/PiProvider.ts";
+import { makeManualOnlyProviderMaintenanceCapabilities } from "../providerMaintenance.ts";
 import { ChildProcessSpawner } from "effect/unstable/process";
 
 const PROVIDER = ProviderDriverKind.make("pi");
 
-const DEFAULT_PI_MODEL_CAPABILITIES: ModelCapabilities = {
-  reasoningEffortLevels: [
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium", isDefault: true },
-    { value: "high", label: "High" },
-  ],
-  supportsFastMode: false,
-  supportsThinkingToggle: false,
-  contextWindowOptions: [],
-  promptInjectedEffortLevels: [],
+const PI_PRESENTATION: ServerProviderPresentation = {
+  displayName: "Pi",
+  showInteractionModeToggle: false,
 };
+
+const DEFAULT_PI_MODEL_CAPABILITIES = createModelCapabilities({
+  optionDescriptors: [
+    {
+      id: "effort",
+      label: "Effort Level",
+      type: "select",
+      options: [
+        { id: "low", label: "Low" },
+        { id: "medium", label: "Medium", isDefault: true },
+        { id: "high", label: "High" },
+      ],
+    },
+  ],
+});
 
 const DEFAULT_PI_MODEL: ServerProviderModel = {
   slug: "minimax/MiniMax-M2.7",
@@ -229,13 +245,14 @@ function buildPiProbeFailure(input: {
   readonly version: string | null;
   readonly cause: unknown;
   readonly commands?: PiCommandCatalog;
-}): ServerProvider {
+}): ServerProviderDraft {
   const fallbackModels = getFallbackModels(input.settings);
   const isMissingCommand = input.cause instanceof Error && isCommandMissingCause(input.cause);
   const detail = input.cause instanceof Error ? input.cause.message.trim() : String(input.cause);
 
   return buildServerProvider({
-    provider: PROVIDER,
+    driver: PROVIDER,
+    presentation: PI_PRESENTATION,
     enabled: input.settings.enabled,
     checkedAt: input.checkedAt,
     models: fallbackModels,
@@ -295,12 +312,12 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
   readonly cwd?: string;
   readonly resolveCommandCatalog?: PiCommandCatalogResolver;
 }) {
-  const checkedAt = new Date().toISOString();
+  const checkedAt = DateTime.formatIso(yield* DateTime.now);
   const fallbackModels = getFallbackModels(input.settings);
 
   if (!input.settings.enabled) {
     return buildServerProvider({
-      provider: PROVIDER,
+      presentation: PI_PRESENTATION,
       enabled: false,
       checkedAt,
       models: fallbackModels,
@@ -358,7 +375,8 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
         "Pi is installed, but it did not report any available models.");
 
     return buildServerProvider({
-      provider: PROVIDER,
+      driver: PROVIDER,
+      presentation: PI_PRESENTATION,
       enabled: true,
       checkedAt,
       models: fallbackModels,
@@ -375,7 +393,8 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
   }
 
   return buildServerProvider({
-    provider: PROVIDER,
+    driver: PROVIDER,
+    presentation: PI_PRESENTATION,
     enabled: true,
     checkedAt,
     models: providerModelsFromSettings(
@@ -396,38 +415,42 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
   });
 });
 
-function buildPendingPiProviderSnapshot(piSettings: PiSettings): ServerProvider {
-  const checkedAt = new Date().toISOString();
-  const fallbackModels = getFallbackModels(piSettings);
+function buildPendingPiProviderSnapshot(
+  piSettings: PiSettings,
+): Effect.Effect<ServerProviderDraft> {
+  return Effect.map(DateTime.now, (now) => {
+    const checkedAt = DateTime.formatIso(now);
+    const fallbackModels = getFallbackModels(piSettings);
 
-  if (!piSettings.enabled) {
+    if (!piSettings.enabled) {
+      return buildServerProvider({
+        presentation: PI_PRESENTATION,
+        enabled: false,
+        checkedAt,
+        models: fallbackModels,
+        probe: {
+          installed: false,
+          version: null,
+          status: "warning",
+          auth: { status: "unknown" },
+          message: "Pi is disabled in T3 Code settings.",
+        },
+      });
+    }
+
     return buildServerProvider({
-      provider: PROVIDER,
-      enabled: false,
+      presentation: PI_PRESENTATION,
+      enabled: true,
       checkedAt,
       models: fallbackModels,
       probe: {
-        installed: false,
+        installed: true,
         version: null,
         status: "warning",
         auth: { status: "unknown" },
-        message: "Pi is disabled in T3 Code settings.",
+        message: "Checking Pi availability...",
       },
     });
-  }
-
-  return buildServerProvider({
-    provider: PROVIDER,
-    enabled: true,
-    checkedAt,
-    models: fallbackModels,
-    probe: {
-      installed: true,
-      version: null,
-      status: "warning",
-      auth: { status: "unknown" },
-      message: "Checking Pi availability...",
-    },
   });
 }
 
@@ -441,24 +464,41 @@ export const PiProviderLive = Layer.effect(
       Effect.map((settings) => settings.providers.pi),
     );
 
+    const piInstanceId = ProviderInstanceId.make("pi");
+    const stampIdentity = (
+      draft: ServerProviderDraft,
+    ): ServerProviderDraft & { instanceId: typeof piInstanceId; driver: typeof PROVIDER } => ({
+      ...draft,
+      instanceId: piInstanceId,
+      driver: PROVIDER,
+    });
+
+    const checkProvider = getProviderSettings.pipe(
+      Effect.flatMap((settings) =>
+        checkPiProviderStatus({
+          settings,
+          cwd,
+          runCommand: (args) => runPiCommand(settings.binaryPath, args, childProcessSpawner),
+          resolveCommandCatalog: probePiCommandCatalog,
+        }),
+      ),
+      Effect.map(stampIdentity),
+      Effect.orDie,
+    );
+
     return yield* makeManagedServerProvider<PiSettings>({
+      maintenanceCapabilities: makeManualOnlyProviderMaintenanceCapabilities({
+        provider: PROVIDER,
+        packageName: null,
+      }),
       getSettings: getProviderSettings.pipe(Effect.orDie),
       streamSettings: serverSettings.streamChanges.pipe(
         Stream.map((settings) => settings.providers.pi),
       ),
       haveSettingsChanged: (previous, next) => !Equal.equals(previous, next),
-      initialSnapshot: buildPendingPiProviderSnapshot,
-      checkProvider: getProviderSettings.pipe(
-        Effect.flatMap((settings) =>
-          checkPiProviderStatus({
-            settings,
-            cwd,
-            runCommand: (args) => runPiCommand(settings.binaryPath, args, childProcessSpawner),
-            resolveCommandCatalog: probePiCommandCatalog,
-          }),
-        ),
-        Effect.orDie,
-      ),
+      initialSnapshot: (settings) =>
+        buildPendingPiProviderSnapshot(settings).pipe(Effect.map(stampIdentity)),
+      checkProvider,
     });
   }),
 );

@@ -8,12 +8,7 @@ import * as Effect from "effect/Effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 
 import { ServerAuth } from "../auth/Services/ServerAuth.ts";
-import { GitStatusBroadcaster } from "../git/Services/GitStatusBroadcaster.ts";
-import { GitCore } from "../git/Services/GitCore.ts";
-import { ProjectSetupScriptRunner } from "../project/Services/ProjectSetupScriptRunner.ts";
-import { ServerRuntimeStartup } from "../serverRuntimeStartup.ts";
 import { normalizeDispatchCommand } from "./Normalizer.ts";
-import { makeDispatchNormalizedCommand } from "./dispatchNormalizedCommand.ts";
 import { OrchestrationEngineService } from "./Services/OrchestrationEngine.ts";
 import { ProjectionSnapshotQuery } from "./Services/ProjectionSnapshotQuery.ts";
 
@@ -73,11 +68,7 @@ export const orchestrationDispatchRouteLayer = HttpRouter.add(
   "/api/orchestration/dispatch",
   Effect.gen(function* () {
     yield* authenticateOwnerSession;
-    const git = yield* GitCore;
-    const gitStatusBroadcaster = yield* GitStatusBroadcaster;
     const orchestrationEngine = yield* OrchestrationEngineService;
-    const projectSetupScriptRunner = yield* ProjectSetupScriptRunner;
-    const startup = yield* ServerRuntimeStartup;
     const command = yield* HttpServerRequest.schemaBodyJson(ClientOrchestrationCommand).pipe(
       Effect.mapError(
         (cause) =>
@@ -88,14 +79,7 @@ export const orchestrationDispatchRouteLayer = HttpRouter.add(
       ),
     );
     const normalizedCommand = yield* normalizeDispatchCommand(command);
-    const dispatchNormalizedCommand = makeDispatchNormalizedCommand({
-      git,
-      gitStatusBroadcaster,
-      orchestrationEngine,
-      projectSetupScriptRunner,
-      startup,
-    });
-    const result = yield* dispatchNormalizedCommand(normalizedCommand).pipe(
+    const result = yield* orchestrationEngine.dispatch(normalizedCommand).pipe(
       Effect.mapError(
         (cause) =>
           new OrchestrationDispatchCommandError({
