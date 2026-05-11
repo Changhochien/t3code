@@ -91,7 +91,7 @@ function resetComposerDraftStore() {
 }
 
 function modelSelection(
-  provider: "codex" | "claudeAgent" | "cursor",
+  provider: "codex" | "claudeAgent" | "cursor" | "pi",
   model: string,
   options?: ModelSelection["options"],
 ): ModelSelection {
@@ -1025,6 +1025,22 @@ describe("composerDraftStore modelSelection", () => {
         reasoning: "medium",
         fastMode: false,
         thinking: true,
+      }),
+    );
+  });
+
+  it("keeps explicit Pi effort overrides on the selection", () => {
+    const store = useComposerDraftStore.getState();
+
+    store.setModelSelection(threadRef, modelSelection("pi", "minimax/MiniMax-M2.7"));
+
+    store.setProviderModelOptions(threadRef, "pi", {
+      effort: "high",
+    });
+
+    expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.modelSelectionByProvider.pi).toEqual(
+      modelSelection("pi", "minimax/MiniMax-M2.7", {
+        effort: "high",
       }),
     );
   });

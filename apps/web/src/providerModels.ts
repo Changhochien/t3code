@@ -35,24 +35,19 @@ export function getProviderSnapshot(
   return providers.find((candidate) => candidate.provider === provider);
 }
 
-export function isProviderEnabled(
-  providers: ReadonlyArray<ServerProvider>,
-  provider: ProviderKind,
-): boolean {
-  if (providers.length === 0) {
-    return true;
-  }
-  return getProviderSnapshot(providers, provider)?.enabled ?? false;
-}
-
 export function resolveSelectableProvider(
   providers: ReadonlyArray<ServerProvider>,
   provider: ProviderKind | null | undefined,
 ): ProviderKind {
   const requested = provider ?? "codex";
-  if (isProviderEnabled(providers, requested)) {
+  if (providers.length === 0) {
     return requested;
   }
+
+  if (providers.some((candidate) => candidate.provider === requested)) {
+    return requested;
+  }
+
   return providers.find((candidate) => candidate.enabled)?.provider ?? requested;
 }
 

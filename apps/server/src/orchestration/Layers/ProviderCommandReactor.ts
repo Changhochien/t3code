@@ -271,16 +271,24 @@ const make = Effect.gen(function* () {
     }
 
     const desiredRuntimeMode = thread.runtimeMode;
+    const settings = yield* serverSettingsService.getSettings;
     const currentProvider: ProviderKind | undefined = Schema.is(ProviderKind)(
       thread.session?.providerName,
     )
       ? thread.session.providerName
       : undefined;
+    const currentProviderDisabled =
+      currentProvider !== undefined ? settings.providers[currentProvider].enabled === false : false;
     const requestedModelSelection = options?.modelSelection;
-    const threadProvider: ProviderKind = currentProvider ?? thread.modelSelection.provider;
+    const threadProvider: ProviderKind =
+      currentProvider !== undefined && !currentProviderDisabled
+        ? currentProvider
+        : thread.modelSelection.provider;
+    const threadProviderDisabled = settings.providers[threadProvider].enabled === false;
     if (
       requestedModelSelection !== undefined &&
-      requestedModelSelection.provider !== threadProvider
+      requestedModelSelection.provider !== threadProvider &&
+      !threadProviderDisabled
     ) {
       return yield* new ProviderAdapterRequestError({
         provider: threadProvider,
@@ -288,7 +296,10 @@ const make = Effect.gen(function* () {
         detail: `Thread '${threadId}' is bound to provider '${threadProvider}' and cannot switch to '${requestedModelSelection.provider}'.`,
       });
     }
-    const preferredProvider: ProviderKind = threadProvider;
+    const preferredProvider: ProviderKind =
+      requestedModelSelection !== undefined && threadProviderDisabled
+        ? requestedModelSelection.provider
+        : threadProvider;
     const desiredModelSelection = requestedModelSelection ?? thread.modelSelection;
     const effectiveCwd = resolveThreadWorkspaceCwd({
       thread,
@@ -306,7 +317,9 @@ const make = Effect.gen(function* () {
     }) =>
       providerService.startSession(threadId, {
         threadId,
-        ...(preferredProvider ? { provider: preferredProvider } : {}),
+        ...((input?.provider ?? preferredProvider)
+          ? { provider: input?.provider ?? preferredProvider }
+          : {}),
         ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
         modelSelection: desiredModelSelection,
         ...(input?.resumeCursor !== undefined ? { resumeCursor: input.resumeCursor } : {}),
@@ -338,6 +351,7 @@ const make = Effect.gen(function* () {
         currentProvider === undefined
           ? "in-session"
           : (yield* providerService.getCapabilities(currentProvider)).sessionModelSwitch;
+      const providerChanged = activeSession?.provider !== desiredModelSelection.provider;
       const modelChanged =
         requestedModelSelection !== undefined &&
         requestedModelSelection.model !== activeSession?.model;
@@ -350,6 +364,7 @@ const make = Effect.gen(function* () {
 
       if (
         !runtimeModeChanged &&
+        !providerChanged &&
         !shouldRestartForModelChange &&
         !shouldRestartForModelSelectionChange
       ) {
@@ -364,6 +379,7 @@ const make = Effect.gen(function* () {
         existingSessionThreadId,
         currentProvider,
         desiredProvider: desiredModelSelection.provider,
+        providerChanged,
         currentRuntimeMode: thread.session?.runtimeMode,
         desiredRuntimeMode: thread.runtimeMode,
         runtimeModeChanged,
@@ -373,7 +389,12 @@ const make = Effect.gen(function* () {
         hasResumeCursor: resumeCursor !== undefined,
       });
       const restartedSession = yield* startProviderSession(
-        resumeCursor !== undefined ? { resumeCursor } : undefined,
+        resumeCursor !== undefined || providerChanged
+          ? {
+              ...(resumeCursor !== undefined ? { resumeCursor } : {}),
+              ...(providerChanged ? { provider: desiredModelSelection.provider } : {}),
+            }
+          : undefined,
       );
       yield* Effect.logInfo("provider command reactor restarted provider session", {
         threadId,

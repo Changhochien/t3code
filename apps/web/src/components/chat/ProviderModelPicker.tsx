@@ -1,11 +1,12 @@
 import {
+  PROVIDER_DISPLAY_NAMES,
   type ProviderKind,
   type ResolvedKeybindingsConfig,
   type ServerProvider,
 } from "@t3tools/contracts";
 import { memo, useEffect, useState } from "react";
 import type { VariantProps } from "class-variance-authority";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, LockIcon } from "lucide-react";
 import { Button, buttonVariants } from "../ui/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -50,6 +51,9 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   const triggerTitle = selectedModel ? getTriggerDisplayModelName(selectedModel) : props.model;
   const triggerSubtitle = selectedModel?.subProvider;
   const triggerLabel = selectedModel ? getTriggerDisplayModelLabel(selectedModel) : props.model;
+  const lockMessage = props.lockedProvider
+    ? `This thread stays on ${PROVIDER_DISPLAY_NAMES[props.lockedProvider]}. Start a new thread to switch providers.`
+    : null;
 
   const setIsMenuOpen = (open: boolean) => {
     props.onOpenChange?.(open);
@@ -88,6 +92,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
             size="sm"
             variant={props.triggerVariant ?? "ghost"}
             data-chat-provider-model-picker="true"
+            title={lockMessage ?? triggerLabel}
             className={cn(
               "min-w-0 justify-start overflow-hidden whitespace-nowrap px-2 text-muted-foreground/70 hover:text-foreground/80 [&_svg]:mx-0",
               props.compact ? "max-w-42 shrink-0" : "max-w-48 shrink sm:max-w-56 sm:px-3",
@@ -107,6 +112,9 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
             aria-hidden="true"
             className={cn("size-4 shrink-0", props.activeProviderIconClassName)}
           />
+          {props.lockedProvider ? (
+            <LockIcon aria-hidden="true" className="size-3 shrink-0 opacity-60" />
+          ) : null}
           <Tooltip>
             <TooltipTrigger
               render={

@@ -2,9 +2,11 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import type { ServerProvider } from "@t3tools/contracts";
 import { assert, it } from "@effect/vitest";
 import { Effect, FileSystem } from "effect";
+import { afterEach, vi } from "vitest";
 
 import {
   hydrateCachedProvider,
+  makeProviderStatusCacheTempPath,
   readProviderStatusCache,
   resolveProviderStatusCachePath,
   writeProviderStatusCache,
@@ -27,7 +29,23 @@ const makeProvider = (
   ...overrides,
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 it.layer(NodeServices.layer)("providerStatusCache", (it) => {
+  it("uses unique temp file paths even within the same millisecond", () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_776_800_000_000);
+
+    const filePath = "/tmp/claudeAgent.json";
+    const first = makeProviderStatusCacheTempPath(filePath);
+    const second = makeProviderStatusCacheTempPath(filePath);
+
+    assert.notStrictEqual(first, second);
+    assert.isTrue(first.startsWith(`${filePath}.${process.pid}.`));
+    assert.isTrue(second.endsWith(".tmp"));
+  });
+
   it.effect("writes and reads provider status snapshots", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;

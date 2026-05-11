@@ -17,6 +17,8 @@ import { Command } from "effect/unstable/cli";
 
 import { cli } from "./cli.ts";
 import { deriveServerPaths, ServerConfig, type ServerConfigShape } from "./config.ts";
+import { GitCore } from "./git/Services/GitCore.ts";
+import { GitStatusBroadcaster } from "./git/Services/GitStatusBroadcaster.ts";
 import { OrchestrationEngineService } from "./orchestration/Services/OrchestrationEngine.ts";
 import { ProjectionSnapshotQuery } from "./orchestration/Services/ProjectionSnapshotQuery.ts";
 import { OrchestrationLayerLive } from "./orchestration/runtimeLayer.ts";
@@ -25,7 +27,9 @@ import {
   orchestrationSnapshotRouteLayer,
 } from "./orchestration/http.ts";
 import { layerConfig as SqlitePersistenceLayerLive } from "./persistence/Layers/Sqlite.ts";
+import { ProjectSetupScriptRunner } from "./project/Services/ProjectSetupScriptRunner.ts";
 import { RepositoryIdentityResolverLive } from "./project/Layers/RepositoryIdentityResolver.ts";
+import { ServerRuntimeStartup } from "./serverRuntimeStartup.ts";
 import {
   makePersistedServerRuntimeState,
   persistServerRuntimeState,
@@ -111,6 +115,26 @@ const withLiveProjectCliServer = <A, E, R>(baseDir: string, run: () => Effect.Ef
       disableListenLog: true,
       disableLogger: true,
     }).pipe(
+      Layer.provide(
+        Layer.mock(ServerRuntimeStartup)({
+          enqueueCommand: (effect) => effect,
+        }),
+      ),
+      Layer.provide(
+        Layer.mock(ProjectSetupScriptRunner)({
+          runForThread: () => Effect.succeed({ status: "no-script" as const }),
+        }),
+      ),
+      Layer.provide(
+        Layer.mock(GitStatusBroadcaster)({
+          refreshStatus: () => Effect.die(new Error("Unexpected git status refresh in CLI test")),
+        }),
+      ),
+      Layer.provide(
+        Layer.mock(GitCore)({
+          createWorktree: () => Effect.die(new Error("Unexpected worktree bootstrap in CLI test")),
+        }),
+      ),
       Layer.provideMerge(
         ServerAuthLive.pipe(
           Layer.provideMerge(SqlitePersistenceLayerLive),

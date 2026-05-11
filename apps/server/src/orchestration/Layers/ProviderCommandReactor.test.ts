@@ -71,7 +71,7 @@ async function waitFor(
 
 describe("ProviderCommandReactor", () => {
   let runtime: ManagedRuntime.ManagedRuntime<
-    OrchestrationEngineService | ProviderCommandReactor,
+    OrchestrationEngineService | ProviderCommandReactor | ServerSettingsService,
     unknown
   > | null = null;
   let scope: Scope.Closeable | null = null;
@@ -101,6 +101,7 @@ describe("ProviderCommandReactor", () => {
     readonly baseDir?: string;
     readonly threadModelSelection?: ModelSelection;
     readonly sessionModelSwitch?: "unsupported" | "in-session";
+    readonly serverSettingsOverrides?: Record<string, unknown>;
   }) {
     const now = new Date().toISOString();
     const baseDir = input?.baseDir ?? fs.mkdtempSync(path.join(os.tmpdir(), "t3code-reactor-"));
@@ -127,8 +128,25 @@ describe("ProviderCommandReactor", () => {
         typeof input.threadId === "string"
           ? ThreadId.make(input.threadId)
           : ThreadId.make(`thread-${sessionIndex}`);
+      const requestedProvider =
+        typeof input === "object" &&
+        input !== null &&
+        "provider" in input &&
+        typeof input.provider === "string"
+          ? (input.provider as ModelSelection["provider"])
+          : modelSelection.provider;
+      const requestedModel =
+        typeof input === "object" &&
+        input !== null &&
+        "modelSelection" in input &&
+        typeof input.modelSelection === "object" &&
+        input.modelSelection !== null &&
+        "model" in input.modelSelection &&
+        typeof input.modelSelection.model === "string"
+          ? input.modelSelection.model
+          : modelSelection.model;
       const session: ProviderSession = {
-        provider: modelSelection.provider,
+        provider: requestedProvider,
         status: "ready" as const,
         runtimeMode:
           typeof input === "object" &&
@@ -137,7 +155,7 @@ describe("ProviderCommandReactor", () => {
           (input.runtimeMode === "approval-required" || input.runtimeMode === "full-access")
             ? input.runtimeMode
             : "full-access",
-        ...(modelSelection.model !== undefined ? { model: modelSelection.model } : {}),
+        ...(requestedModel !== undefined ? { model: requestedModel } : {}),
         threadId,
         resumeCursor: resumeCursor ?? { opaque: `resume-${sessionIndex}` },
         createdAt: now,
@@ -262,14 +280,18 @@ describe("ProviderCommandReactor", () => {
           generateThreadTitle,
         }),
       ),
-      Layer.provideMerge(ServerSettingsService.layerTest()),
+      Layer.provideMerge(
+        ServerSettingsService.layerTest((input?.serverSettingsOverrides ?? {}) as never),
+      ),
       Layer.provideMerge(ServerConfig.layerTest(process.cwd(), baseDir)),
       Layer.provideMerge(NodeServices.layer),
     );
-    runtime = ManagedRuntime.make(layer);
+    const activeRuntime = ManagedRuntime.make(layer);
+    runtime = activeRuntime;
 
-    const engine = await runtime.runPromise(Effect.service(OrchestrationEngineService));
-    const reactor = await runtime.runPromise(Effect.service(ProviderCommandReactor));
+    const engine = await activeRuntime.runPromise(Effect.service(OrchestrationEngineService));
+    const reactor = await activeRuntime.runPromise(Effect.service(ProviderCommandReactor));
+    const serverSettings = await activeRuntime.runPromise(Effect.service(ServerSettingsService));
     scope = await Effect.runPromise(Scope.make("sequential"));
     await Effect.runPromise(reactor.start().pipe(Scope.provide(scope)));
     const drain = () => Effect.runPromise(reactor.drain);
@@ -315,6 +337,8 @@ describe("ProviderCommandReactor", () => {
       generateThreadTitle,
       stateDir,
       drain,
+      updateSettings: (patch: Parameters<typeof serverSettings.updateSettings>[0]) =>
+        activeRuntime.runPromise(serverSettings.updateSettings(patch)),
     };
   }
 
@@ -339,8 +363,10 @@ describe("ProviderCommandReactor", () => {
       }),
     );
 
-    await waitFor(() => harness.startSession.mock.calls.length === 1);
-    await waitFor(() => harness.sendTurn.mock.calls.length === 1);
+    await harness.drain();
+
+    expect(harness.startSession.mock.calls.length).toBe(1);
+    expect(harness.sendTurn.mock.calls.length).toBe(1);
     expect(harness.startSession.mock.calls[0]?.[0]).toEqual(ThreadId.make("thread-1"));
     expect(harness.startSession.mock.calls[0]?.[1]).toMatchObject({
       cwd: "/tmp/provider-project",
@@ -581,8 +607,10 @@ describe("ProviderCommandReactor", () => {
       }),
     );
 
-    await waitFor(() => harness.startSession.mock.calls.length === 1);
-    await waitFor(() => harness.sendTurn.mock.calls.length === 1);
+    await harness.drain();
+
+    expect(harness.startSession.mock.calls.length).toBe(1);
+    expect(harness.sendTurn.mock.calls.length).toBe(1);
     expect(harness.startSession.mock.calls[0]?.[1]).toMatchObject({
       modelSelection: {
         provider: "codex",
@@ -849,6 +877,94 @@ describe("ProviderCommandReactor", () => {
       summary: "Provider turn start failed",
       payload: {
         detail: expect.stringContaining("cannot switch to 'claudeAgent'"),
+      },
+    });
+  });
+
+  it("allows switching away from a disabled bound provider", async () => {
+    const harness = await createHarness({
+      threadModelSelection: { provider: "codex", model: "gpt-5-codex" },
+    });
+    const now = new Date().toISOString();
+
+    await Effect.runPromise(
+      harness.engine.dispatch({
+        type: "thread.turn.start",
+        commandId: CommandId.make("cmd-turn-start-disabled-provider-1"),
+        threadId: ThreadId.make("thread-1"),
+        message: {
+          messageId: asMessageId("user-message-disabled-provider-1"),
+          role: "user",
+          text: "hello codex",
+          attachments: [],
+        },
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        runtimeMode: "approval-required",
+        createdAt: now,
+      }),
+    );
+
+    await harness.drain();
+
+    expect(harness.startSession.mock.calls.length).toBe(1);
+    expect(harness.sendTurn.mock.calls.length).toBe(1);
+
+    await harness.updateSettings({
+      providers: {
+        codex: { enabled: false },
+      },
+    });
+
+    await Effect.runPromise(
+      harness.engine.dispatch({
+        type: "thread.meta.update",
+        commandId: CommandId.make("cmd-thread-meta-update-disabled-provider"),
+        threadId: ThreadId.make("thread-1"),
+        modelSelection: {
+          provider: "pi",
+          model: "minimax/MiniMax-M2.7",
+        },
+      }),
+    );
+
+    await Effect.runPromise(
+      harness.engine.dispatch({
+        type: "thread.turn.start",
+        commandId: CommandId.make("cmd-turn-start-disabled-provider-2"),
+        threadId: ThreadId.make("thread-1"),
+        message: {
+          messageId: asMessageId("user-message-disabled-provider-2"),
+          role: "user",
+          text: "hello pi",
+          attachments: [],
+        },
+        modelSelection: {
+          provider: "pi",
+          model: "minimax/MiniMax-M2.7",
+        },
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        runtimeMode: "approval-required",
+        createdAt: now,
+      }),
+    );
+
+    await harness.drain();
+
+    expect(harness.startSession.mock.calls.length).toBe(2);
+    expect(harness.sendTurn.mock.calls.length).toBe(2);
+
+    expect(harness.startSession.mock.calls[1]?.[1]).toMatchObject({
+      provider: "pi",
+      modelSelection: {
+        provider: "pi",
+        model: "minimax/MiniMax-M2.7",
+      },
+    });
+    expect(harness.sendTurn.mock.calls[1]?.[0]).toMatchObject({
+      threadId: ThreadId.make("thread-1"),
+      modelSelection: {
+        provider: "pi",
+        model: "minimax/MiniMax-M2.7",
       },
     });
   });

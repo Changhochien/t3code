@@ -589,6 +589,33 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
         ),
       );
 
+      it.effect("reads claude auth JSON from stderr", () =>
+        Effect.gen(function* () {
+          const status = yield* checkClaudeProviderStatus();
+          assert.strictEqual(status.provider, "claudeAgent");
+          assert.strictEqual(status.status, "ready");
+          assert.strictEqual(status.installed, true);
+          assert.strictEqual(status.auth.status, "authenticated");
+          assert.strictEqual(status.auth.type, "maxplan");
+          assert.strictEqual(status.auth.label, "Claude Max Subscription");
+        }).pipe(
+          Effect.provide(
+            mockSpawnerLayer((args) => {
+              const joined = args.join(" ");
+              if (joined === "--version") return { stdout: "1.0.0\n", stderr: "", code: 0 };
+              if (joined === "auth status")
+                return {
+                  stdout: "",
+                  stderr:
+                    '{"loggedIn":true,"authMethod":"oauth_token","subscriptionType":"maxplan"}\n',
+                  code: 0,
+                };
+              throw new Error(`Unexpected args: ${joined}`);
+            }),
+          ),
+        ),
+      );
+
       it.effect(
         "includes Claude Opus 4.7 with xhigh as the default effort on supported versions",
         () =>
@@ -899,6 +926,16 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
         const parsed = parseClaudeAuthStatusFromOutput({
           stdout: '{"loggedIn":true,"authMethod":"claude.ai"}\n',
           stderr: "",
+          code: 0,
+        });
+        assert.strictEqual(parsed.status, "ready");
+        assert.strictEqual(parsed.auth.status, "authenticated");
+      });
+
+      it("JSON with loggedIn=true on stderr is authenticated", () => {
+        const parsed = parseClaudeAuthStatusFromOutput({
+          stdout: "",
+          stderr: '{"loggedIn":true,"authMethod":"claude.ai"}\n',
           code: 0,
         });
         assert.strictEqual(parsed.status, "ready");

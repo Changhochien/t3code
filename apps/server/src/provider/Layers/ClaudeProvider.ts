@@ -208,8 +208,8 @@ export function parseClaudeAuthStatusFromOutput(result: CommandResult): {
   }
 
   const parsedAuth = (() => {
-    const trimmed = result.stdout.trim();
-    if (!trimmed || (!trimmed.startsWith("{") && !trimmed.startsWith("["))) {
+    const trimmed = findStructuredCommandOutput(result);
+    if (!trimmed) {
       return { attemptedJsonParse: false as const, auth: undefined as boolean | undefined };
     }
     try {
@@ -337,14 +337,28 @@ function findAuthMethod(value: unknown): Option.Option<string> {
  */
 const decodeUnknownJson = decodeJsonResult(Schema.Unknown);
 
+function findStructuredCommandOutput(result: CommandResult): string | undefined {
+  for (const candidate of [result.stdout, result.stderr]) {
+    const trimmed = candidate.trim();
+    if (trimmed && (trimmed.startsWith("{") || trimmed.startsWith("["))) {
+      return trimmed;
+    }
+  }
+  return undefined;
+}
+
 function extractSubscriptionTypeFromOutput(result: CommandResult): string | undefined {
-  const parsed = decodeUnknownJson(result.stdout.trim());
+  const structuredOutput = findStructuredCommandOutput(result);
+  if (!structuredOutput) return undefined;
+  const parsed = decodeUnknownJson(structuredOutput);
   if (Result.isFailure(parsed)) return undefined;
   return Option.getOrUndefined(findSubscriptionType(parsed.success));
 }
 
 function extractClaudeAuthMethodFromOutput(result: CommandResult): string | undefined {
-  const parsed = decodeUnknownJson(result.stdout.trim());
+  const structuredOutput = findStructuredCommandOutput(result);
+  if (!structuredOutput) return undefined;
+  const parsed = decodeUnknownJson(structuredOutput);
   if (Result.isFailure(parsed)) return undefined;
   return Option.getOrUndefined(findAuthMethod(parsed.success));
 }

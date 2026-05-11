@@ -398,6 +398,12 @@ describe("ProviderModelPicker", () => {
     });
 
     try {
+      await vi.waitFor(() => {
+        expect(document.querySelector("button")?.getAttribute("title")).toContain(
+          "Start a new thread to switch providers.",
+        );
+      });
+
       await page.getByRole("button").click();
 
       await vi.waitFor(() => {
@@ -428,6 +434,7 @@ describe("ProviderModelPicker", () => {
       codex: [{ slug: "gpt-5-codex", name: "GPT-5 Codex" }],
       cursor: [],
       opencode: [],
+      pi: [],
     } as const;
     const screen = await render(
       <ProviderModelPicker

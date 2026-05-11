@@ -4,6 +4,7 @@ import {
   CodexModelOptions,
   CursorModelOptions,
   OpenCodeModelOptions,
+  PiModelOptions,
 } from "./model.ts";
 import { RepositoryIdentity } from "./environment.ts";
 import {
@@ -30,7 +31,7 @@ export const ORCHESTRATION_WS_METHODS = {
   subscribeThread: "orchestration.subscribeThread",
 } as const;
 
-export const ProviderKind = Schema.Literals(["codex", "claudeAgent", "cursor", "opencode"]);
+export const ProviderKind = Schema.Literals(["codex", "claudeAgent", "cursor", "opencode", "pi"]);
 export type ProviderKind = typeof ProviderKind.Type;
 export const ProviderApprovalPolicy = Schema.Literals([
   "untrusted",
@@ -75,11 +76,19 @@ export const OpenCodeModelSelection = Schema.Struct({
 });
 export type OpenCodeModelSelection = typeof OpenCodeModelSelection.Type;
 
+export const PiModelSelection = Schema.Struct({
+  provider: Schema.Literal("pi"),
+  model: TrimmedNonEmptyString,
+  options: Schema.optionalKey(PiModelOptions),
+});
+export type PiModelSelection = typeof PiModelSelection.Type;
+
 export const ModelSelection = Schema.Union([
   CodexModelSelection,
   ClaudeModelSelection,
   CursorModelSelection,
   OpenCodeModelSelection,
+  PiModelSelection,
 ]);
 export type ModelSelection = typeof ModelSelection.Type;
 

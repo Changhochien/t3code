@@ -3992,6 +3992,155 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
+  it("lets a disabled bound provider switch to Pi on the same thread", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-disabled-provider-switch" as MessageId,
+        targetText: "disabled provider switch",
+      }),
+      configureFixture: (nextFixture) => {
+        nextFixture.serverConfig = {
+          ...nextFixture.serverConfig,
+          providers: [
+            {
+              ...nextFixture.serverConfig.providers[0]!,
+              provider: "codex",
+              enabled: false,
+              status: "disabled",
+              models: [
+                {
+                  slug: "gpt-5",
+                  name: "GPT-5",
+                  isCustom: false,
+                  capabilities: {
+                    supportsFastMode: true,
+                    supportsThinkingToggle: false,
+                    reasoningEffortLevels: [],
+                    promptInjectedEffortLevels: [],
+                    contextWindowOptions: [],
+                  },
+                },
+              ],
+            },
+            {
+              provider: "pi",
+              enabled: true,
+              installed: true,
+              version: "0.68.0",
+              status: "ready",
+              auth: { status: "authenticated" },
+              checkedAt: NOW_ISO,
+              models: [
+                {
+                  slug: "minimax/MiniMax-M2.7",
+                  name: "MiniMax M2.7",
+                  isCustom: false,
+                  capabilities: {
+                    supportsFastMode: false,
+                    supportsThinkingToggle: false,
+                    reasoningEffortLevels: [],
+                    promptInjectedEffortLevels: [],
+                    contextWindowOptions: [],
+                  },
+                },
+              ],
+              slashCommands: [],
+              skills: [],
+            },
+          ],
+        };
+      },
+      resolveRpc: (body) => {
+        if (body._tag === ORCHESTRATION_WS_METHODS.dispatchCommand) {
+          return {
+            sequence: fixture.snapshot.snapshotSequence + 1,
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      await waitForServerConfigToApply();
+      const modelPicker = await waitForElement(
+        findComposerProviderModelPicker,
+        "Unable to find provider model picker.",
+      );
+      modelPicker.click();
+
+      const piProviderButton = await waitForElement(
+        () => document.querySelector<HTMLElement>('[data-model-picker-provider="pi"]'),
+        "Unable to find Pi provider button in the model picker.",
+      );
+      piProviderButton.click();
+
+      await vi.waitFor(() => {
+        expect(document.querySelector(".model-picker-list")?.textContent).toContain("MiniMax M2.7");
+      });
+      await page.getByText("MiniMax M2.7", { exact: true }).click();
+
+      await vi.waitFor(() => {
+        expect(findComposerProviderModelPicker()?.textContent).toContain("MiniMax M2.7");
+      });
+
+      wsRequests.length = 0;
+      useComposerDraftStore.getState().setPrompt(THREAD_REF, "send with pi");
+      await waitForLayout();
+
+      const sendButton = await waitForSendButton();
+      expect(sendButton.disabled).toBe(false);
+      sendButton.click();
+
+      await vi.waitFor(
+        () => {
+          const metaUpdateRequest = wsRequests.find(
+            (request) =>
+              request._tag === ORCHESTRATION_WS_METHODS.dispatchCommand &&
+              request.type === "thread.meta.update",
+          ) as
+            | {
+                _tag: string;
+                type?: string;
+                modelSelection?: { provider?: string; model?: string };
+              }
+            | undefined;
+          const turnStartRequest = wsRequests.find(
+            (request) =>
+              request._tag === ORCHESTRATION_WS_METHODS.dispatchCommand &&
+              request.type === "thread.turn.start",
+          ) as
+            | {
+                _tag: string;
+                type?: string;
+                modelSelection?: { provider?: string; model?: string };
+              }
+            | undefined;
+
+          expect(metaUpdateRequest).toMatchObject({
+            _tag: ORCHESTRATION_WS_METHODS.dispatchCommand,
+            type: "thread.meta.update",
+            modelSelection: {
+              provider: "pi",
+              model: "minimax/MiniMax-M2.7",
+            },
+          });
+          expect(turnStartRequest).toMatchObject({
+            _tag: ORCHESTRATION_WS_METHODS.dispatchCommand,
+            type: "thread.turn.start",
+            modelSelection: {
+              provider: "pi",
+              model: "minimax/MiniMax-M2.7",
+            },
+          });
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
   it("creates a new thread from the global chat.new shortcut", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,

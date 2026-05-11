@@ -10,6 +10,7 @@ import {
   isClaudeUltrathinkPrompt,
   normalizeClaudeModelOptionsWithCapabilities,
   normalizeCodexModelOptionsWithCapabilities,
+  normalizePiModelOptionsWithCapabilities,
   normalizeModelSlug,
   resolveContextWindow,
   resolveEffort,
@@ -42,6 +43,18 @@ const claudeCaps: ModelCapabilities = {
     { value: "1m", label: "1M", isDefault: true },
   ],
   promptInjectedEffortLevels: ["ultrathink"],
+};
+
+const piCaps: ModelCapabilities = {
+  reasoningEffortLevels: [
+    { value: "low", label: "Low" },
+    { value: "medium", label: "Medium", isDefault: true },
+    { value: "high", label: "High" },
+  ],
+  supportsFastMode: false,
+  supportsThinkingToggle: false,
+  contextWindowOptions: [],
+  promptInjectedEffortLevels: [],
 };
 
 describe("normalizeModelSlug", () => {
@@ -245,6 +258,16 @@ describe("normalize*ModelOptionsWithCapabilities", () => {
       ),
     ).toEqual({
       thinking: true,
+    });
+  });
+
+  it("preserves Pi effort selections", () => {
+    expect(
+      normalizePiModelOptionsWithCapabilities(piCaps, {
+        effort: "high",
+      }),
+    ).toEqual({
+      effort: "high",
     });
   });
 });

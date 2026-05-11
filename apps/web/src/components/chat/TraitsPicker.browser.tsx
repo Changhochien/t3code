@@ -8,6 +8,7 @@ import {
   DEFAULT_MODEL_BY_PROVIDER,
   DEFAULT_SERVER_SETTINGS,
   OpenCodeModelOptions,
+  PiModelOptions,
   EnvironmentId,
   type ServerProvider,
   ThreadId,
@@ -560,6 +561,79 @@ async function mountCursorPicker(props: { model?: string; options?: CursorModelO
   };
 }
 
+async function mountPiPicker(props?: { model?: string; options?: PiModelOptions }) {
+  const model = props?.model ?? "minimax/MiniMax-M2.7";
+  const piThreadId = ThreadId.make("thread-pi-traits");
+  const piThreadRef = scopeThreadRef(LOCAL_ENVIRONMENT_ID, piThreadId);
+  const piThreadKey = scopedThreadKey(piThreadRef);
+  const host = document.createElement("div");
+  document.body.append(host);
+
+  useComposerDraftStore.setState({
+    draftsByThreadKey: {
+      [piThreadKey]: {
+        prompt: "",
+        images: [],
+        nonPersistedImageIds: [],
+        persistedAttachments: [],
+        terminalContexts: [],
+        modelSelectionByProvider: {
+          pi: {
+            provider: "pi",
+            model,
+            ...(props?.options ? { options: props.options } : {}),
+          },
+        },
+        activeProvider: "pi",
+        runtimeMode: null,
+        interactionMode: null,
+      },
+    },
+    draftThreadsByThreadKey: {},
+    logicalProjectDraftThreadKeyByLogicalProjectKey: {},
+  });
+
+  const screen = await render(
+    <TraitsPicker
+      provider="pi"
+      models={[
+        {
+          slug: "minimax/MiniMax-M2.7",
+          name: "MiniMax M2.7",
+          isCustom: false,
+          capabilities: {
+            reasoningEffortLevels: [
+              { value: "low", label: "Low" },
+              { value: "medium", label: "Medium", isDefault: true },
+              { value: "high", label: "High" },
+            ],
+            supportsFastMode: false,
+            supportsThinkingToggle: false,
+            contextWindowOptions: [],
+            promptInjectedEffortLevels: [],
+          },
+        },
+      ]}
+      threadRef={piThreadRef}
+      model={model}
+      prompt=""
+      modelOptions={props?.options}
+      onPromptChange={() => {}}
+    />,
+    { container: host },
+  );
+
+  const cleanup = async () => {
+    await screen.unmount();
+    host.remove();
+  };
+
+  return {
+    [Symbol.asyncDispose]: cleanup,
+    cleanup,
+  };
+}
+
 describe("TraitsPicker (Codex)", () => {
   afterEach(() => {
     document.body.innerHTML = "";
@@ -816,6 +890,37 @@ describe("TraitsPicker (Cursor)", () => {
 
     await vi.waitFor(() => {
       expect(document.body.textContent ?? "").toContain("Normal · 1M");
+    });
+  });
+});
+
+describe("TraitsPicker (Pi)", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+    localStorage.removeItem(COMPOSER_DRAFT_STORAGE_KEY);
+    useComposerDraftStore.setState({
+      draftsByThreadKey: {},
+      draftThreadsByThreadKey: {},
+      logicalProjectDraftThreadKeyByLogicalProjectKey: {},
+      stickyModelSelectionByProvider: {},
+    });
+  });
+
+  it("persists Pi effort changes when selecting High", async () => {
+    await using _ = await mountPiPicker();
+
+    await vi.waitFor(() => {
+      expect(document.body.textContent ?? "").toContain("Medium");
+    });
+
+    await page.getByRole("button").click();
+    await page.getByRole("menuitemradio", { name: "High" }).click();
+
+    await vi.waitFor(() => {
+      expect(useComposerDraftStore.getState().draftsByThreadKey).toBeTruthy();
+      const draft = Object.values(useComposerDraftStore.getState().draftsByThreadKey)[0];
+      expect(draft?.modelSelectionByProvider.pi?.options).toEqual({ effort: "high" });
+      expect(document.body.textContent ?? "").toContain("High");
     });
   });
 });

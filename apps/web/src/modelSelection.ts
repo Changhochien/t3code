@@ -66,6 +66,13 @@ const PROVIDER_CUSTOM_MODEL_CONFIG: Record<ProviderKind, ProviderCustomModelConf
     placeholder: "openai/gpt-5",
     example: "anthropic/claude-sonnet-4-5-20250929",
   },
+  pi: {
+    provider: "pi",
+    title: "Pi",
+    description: "Save additional Pi model slugs for the picker and `/model` command.",
+    placeholder: "your-pi-model-slug",
+    example: "pi-default",
+  },
 };
 
 export const MODEL_PROVIDER_SETTINGS = Object.values(PROVIDER_CUSTOM_MODEL_CONFIG);
@@ -200,6 +207,12 @@ export function getCustomModelOptionsByProvider(
       "opencode",
       selectedProvider === "opencode" ? selectedModel : undefined,
     ),
+    pi: getAppModelOptions(
+      settings,
+      providers,
+      "pi",
+      selectedProvider === "pi" ? selectedModel : undefined,
+    ),
   };
 }
 
@@ -213,8 +226,9 @@ export function resolveAppModelSelectionState(
   };
   const provider = resolveSelectableProvider(providers, selection.provider);
 
-  // When the provider changed due to fallback (e.g. selected provider was disabled),
-  // don't carry over the old provider's model — use the fallback provider's default.
+  // If the requested provider is missing from the server snapshot, fall back to an
+  // available provider and use that provider's default model instead of carrying
+  // over a model slug that belongs to a different provider.
   const selectedModel = provider === selection.provider ? selection.model : null;
   const model = resolveAppModelSelection(provider, settings, providers, selectedModel);
   const { modelOptionsForDispatch } = getComposerProviderState({

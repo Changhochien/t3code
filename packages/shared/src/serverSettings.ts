@@ -4,6 +4,7 @@ import {
   type CodexModelOptions,
   type CursorModelOptions,
   type OpenCodeModelOptions,
+  type PiModelOptions,
   type ServerSettingsPatch,
 } from "@t3tools/contracts";
 import { Schema } from "effect";
@@ -99,12 +100,20 @@ export function applyServerSettingsPatch(
                   selectionPatch.options as CursorModelOptions | undefined,
                 ),
               }
-            : {
-                provider,
-                model,
-                ...withModelSelectionOptions(
-                  selectionPatch.options as OpenCodeModelOptions | undefined,
-                ),
-              },
+            : provider === "pi"
+              ? {
+                  provider,
+                  model,
+                  ...withModelSelectionOptions(
+                    selectionPatch.options as PiModelOptions | undefined,
+                  ),
+                }
+              : {
+                  provider,
+                  model,
+                  ...withModelSelectionOptions(
+                    selectionPatch.options as OpenCodeModelOptions | undefined,
+                  ),
+                },
   };
 }

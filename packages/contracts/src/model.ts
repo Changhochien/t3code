@@ -52,11 +52,18 @@ export const OpenCodeModelOptions = Schema.Struct({
 });
 export type OpenCodeModelOptions = typeof OpenCodeModelOptions.Type;
 
+export const PiModelOptions = Schema.Struct({
+  thinking: Schema.optional(Schema.Boolean),
+  effort: Schema.optional(TrimmedNonEmptyString),
+});
+export type PiModelOptions = typeof PiModelOptions.Type;
+
 export const ProviderModelOptions = Schema.Struct({
   codex: Schema.optional(CodexModelOptions),
   claudeAgent: Schema.optional(ClaudeModelOptions),
   cursor: Schema.optional(CursorModelOptions),
   opencode: Schema.optional(OpenCodeModelOptions),
+  pi: Schema.optional(PiModelOptions),
 });
 export type ProviderModelOptions = typeof ProviderModelOptions.Type;
 
@@ -90,6 +97,7 @@ export const DEFAULT_MODEL_BY_PROVIDER: Record<ProviderKind, string> = {
   claudeAgent: "claude-sonnet-4-6",
   cursor: "auto",
   opencode: "openai/gpt-5",
+  pi: "claude-sonnet-4",
 };
 
 export const DEFAULT_MODEL = DEFAULT_MODEL_BY_PROVIDER.codex;
@@ -100,6 +108,7 @@ export const DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER: Record<ProviderKind,
   claudeAgent: "claude-haiku-4-5",
   cursor: "composer-2",
   opencode: "openai/gpt-5",
+  pi: "claude-sonnet-4",
 };
 
 export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string, string>> = {
@@ -139,6 +148,7 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string,
     "opus-4.5": "claude-opus-4-5",
   },
   opencode: {},
+  pi: {},
 };
 
 // ── Provider display names ────────────────────────────────────────────
@@ -148,4 +158,5 @@ export const PROVIDER_DISPLAY_NAMES: Record<ProviderKind, string> = {
   claudeAgent: "Claude",
   cursor: "Cursor",
   opencode: "OpenCode",
+  pi: "Pi",
 };

@@ -1030,7 +1030,7 @@ export default function ChatView(props: ChatViewProps) {
   const selectedProviderByThreadId = composerActiveProvider ?? null;
   const threadProvider =
     activeThread?.modelSelection.provider ?? activeProject?.defaultModelSelection?.provider ?? null;
-  const lockedProvider = deriveLockedProvider({
+  const lockedProviderCandidate = deriveLockedProvider({
     thread: activeThread,
     selectedProvider: selectedProviderByThreadId,
     threadProvider,
@@ -1047,6 +1047,12 @@ export default function ChatView(props: ChatViewProps) {
       ? primaryServerConfig
       : (activeEnvRuntimeState?.serverConfig ?? primaryServerConfig);
   const providerStatuses = serverConfig?.providers ?? EMPTY_PROVIDERS;
+  const lockedProvider =
+    lockedProviderCandidate !== null &&
+    providerStatuses.find((status) => status.provider === lockedProviderCandidate)?.enabled ===
+      false
+      ? null
+      : lockedProviderCandidate;
   const unlockedSelectedProvider = resolveSelectableProvider(
     providerStatuses,
     selectedProviderByThreadId ?? threadProvider ?? "codex",
@@ -2546,7 +2552,7 @@ export default function ChatView(props: ChatViewProps) {
         ctxSelectedProvider,
         ctxSelectedModel ||
           activeProject.defaultModelSelection?.model ||
-          DEFAULT_MODEL_BY_PROVIDER.codex,
+          (DEFAULT_MODEL_BY_PROVIDER[ctxSelectedProvider] ?? DEFAULT_MODEL_BY_PROVIDER.codex),
         ctxSelectedModelSelection.options,
       );
 

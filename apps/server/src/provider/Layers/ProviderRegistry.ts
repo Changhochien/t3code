@@ -11,10 +11,12 @@ import { ClaudeProviderLive } from "./ClaudeProvider.ts";
 import { CodexProviderLive } from "./CodexProvider.ts";
 import { CursorProviderLive } from "./CursorProvider.ts";
 import { OpenCodeProviderLive } from "./OpenCodeProvider.ts";
+import { PiProviderLive } from "./PiProvider.ts";
 import { ClaudeProvider } from "../Services/ClaudeProvider.ts";
 import { CodexProvider } from "../Services/CodexProvider.ts";
 import { CursorProvider } from "../Services/CursorProvider.ts";
 import { OpenCodeProvider } from "../Services/OpenCodeProvider.ts";
+import { PiProvider } from "../Services/PiProvider.ts";
 import { ProviderRegistry, type ProviderRegistryShape } from "../Services/ProviderRegistry.ts";
 import { OpenCodeRuntimeLive } from "../opencodeRuntime.ts";
 import {
@@ -98,6 +100,8 @@ const ProviderRegistryLiveBase = Layer.effect(
 
     const cursorProvider = yield* CursorProvider;
 
+    const piProvider = yield* PiProvider;
+
     const providerSources = [
       {
         provider: "codex",
@@ -122,6 +126,12 @@ const ProviderRegistryLiveBase = Layer.effect(
         getSnapshot: cursorProvider.getSnapshot,
         refresh: cursorProvider.refresh,
         streamChanges: cursorProvider.streamChanges,
+      },
+      {
+        provider: "pi",
+        getSnapshot: piProvider.getSnapshot,
+        refresh: piProvider.refresh,
+        streamChanges: piProvider.streamChanges,
       },
     ] satisfies ReadonlyArray<ProviderSnapshotSource>;
     const activeProviders = PROVIDER_CACHE_IDS;
@@ -289,6 +299,7 @@ export const ProviderRegistryLive = Layer.unwrap(
       Layer.provideMerge(ClaudeProviderLive),
       Layer.provideMerge(OpenCodeProviderLive),
       Layer.provideMerge(OpenCodeRuntimeLive),
+      Layer.provideMerge(PiProviderLive),
     ),
   ),
 );

@@ -134,6 +134,25 @@ const OPENCODE_MODELS: ReadonlyArray<ServerProviderModel> = [
   },
 ];
 
+const PI_MODELS: ReadonlyArray<ServerProviderModel> = [
+  {
+    slug: "minimax/MiniMax-M2.7",
+    name: "MiniMax M2.7",
+    isCustom: false,
+    capabilities: {
+      reasoningEffortLevels: [
+        { value: "low", label: "Low" },
+        { value: "medium", label: "Medium", isDefault: true },
+        { value: "high", label: "High" },
+      ],
+      supportsFastMode: false,
+      supportsThinkingToggle: false,
+      contextWindowOptions: [],
+      promptInjectedEffortLevels: [],
+    },
+  },
+];
+
 describe("getComposerProviderState", () => {
   it("returns codex defaults when no codex draft options exist", () => {
     const state = getComposerProviderState({
@@ -410,6 +429,28 @@ describe("getComposerProviderState", () => {
     });
 
     expect(state.modelOptionsForDispatch).toHaveProperty("contextWindow", "200k");
+  });
+
+  it("preserves Pi effort selections in dispatch options", () => {
+    const state = getComposerProviderState({
+      provider: "pi",
+      model: "minimax/MiniMax-M2.7",
+      models: PI_MODELS,
+      prompt: "",
+      modelOptions: {
+        pi: {
+          effort: "high",
+        },
+      },
+    });
+
+    expect(state).toEqual({
+      provider: "pi",
+      promptEffort: "high",
+      modelOptionsForDispatch: {
+        effort: "high",
+      },
+    });
   });
 
   it("omits contextWindow when the model does not support it", () => {

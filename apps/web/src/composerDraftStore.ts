@@ -531,7 +531,11 @@ function shouldRemoveDraft(draft: ComposerThreadDraftState): boolean {
 }
 
 function normalizeProviderKind(value: unknown): ProviderKind | null {
-  return value === "codex" || value === "claudeAgent" || value === "cursor" || value === "opencode"
+  return value === "codex" ||
+    value === "claudeAgent" ||
+    value === "cursor" ||
+    value === "opencode" ||
+    value === "pi"
     ? value
     : null;
 }
@@ -557,6 +561,10 @@ function normalizeProviderModelOptions(
   const openCodeCandidate =
     candidate?.opencode && typeof candidate.opencode === "object"
       ? (candidate.opencode as Record<string, unknown>)
+      : null;
+  const piCandidate =
+    candidate?.pi && typeof candidate.pi === "object"
+      ? (candidate.pi as Record<string, unknown>)
       : null;
 
   const isCodexReasoningEffort = Schema.is(CodexReasoningEffort);
@@ -670,7 +678,21 @@ function normalizeProviderModelOptions(
         }
       : undefined;
 
-  if (!codex && !claude && cursor === undefined && !opencode) {
+  const piThinking =
+    piCandidate?.thinking === true ? true : piCandidate?.thinking === false ? false : undefined;
+  const piEffort =
+    typeof piCandidate?.effort === "string" && piCandidate.effort.length > 0
+      ? piCandidate.effort
+      : undefined;
+  const pi =
+    piThinking !== undefined || piEffort !== undefined
+      ? {
+          ...(piThinking !== undefined ? { thinking: piThinking } : {}),
+          ...(piEffort !== undefined ? { effort: piEffort } : {}),
+        }
+      : undefined;
+
+  if (!codex && !claude && cursor === undefined && !opencode && !pi) {
     return null;
   }
   return {
@@ -678,6 +700,7 @@ function normalizeProviderModelOptions(
     ...(claude ? { claudeAgent: claude } : {}),
     ...(cursor !== undefined ? { cursor } : {}),
     ...(opencode ? { opencode } : {}),
+    ...(pi ? { pi } : {}),
   };
 }
 

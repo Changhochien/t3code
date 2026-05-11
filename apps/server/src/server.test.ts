@@ -1464,6 +1464,81 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
+  it.effect("dispatches bootstrap thread.turn.start over HTTP", () =>
+    Effect.gen(function* () {
+      const dispatchedCommands: Array<OrchestrationCommand> = [];
+
+      yield* buildAppUnderTest({
+        layers: {
+          orchestrationEngine: {
+            dispatch: (command) =>
+              Effect.sync(() => {
+                dispatchedCommands.push(command);
+                return { sequence: dispatchedCommands.length };
+              }),
+            readEvents: () => Stream.empty,
+          },
+        },
+      });
+
+      const createdAt = new Date().toISOString();
+      const response = yield* HttpClient.post("/api/orchestration/dispatch", {
+        headers: {
+          cookie: yield* getAuthenticatedSessionCookieHeader(),
+          "content-type": "application/json",
+        },
+        body: HttpBody.text(
+          JSON.stringify({
+            type: "thread.turn.start",
+            commandId: CommandId.make("cmd-http-bootstrap-turn-start"),
+            threadId: ThreadId.make("thread-http-bootstrap"),
+            message: {
+              messageId: MessageId.make("msg-http-bootstrap"),
+              role: "user",
+              text: "hello",
+              attachments: [],
+            },
+            modelSelection: defaultModelSelection,
+            runtimeMode: "full-access",
+            interactionMode: "default",
+            bootstrap: {
+              createThread: {
+                projectId: defaultProjectId,
+                title: "Bootstrap Thread",
+                modelSelection: defaultModelSelection,
+                runtimeMode: "full-access",
+                interactionMode: "default",
+                branch: null,
+                worktreePath: null,
+                createdAt,
+              },
+            },
+            createdAt,
+          }),
+          "application/json",
+        ),
+      });
+
+      assert.equal(response.status, 200);
+      assert.deepEqual((yield* response.json) as { sequence: number }, { sequence: 2 });
+      assert.deepEqual(
+        dispatchedCommands.map((command) => command.type),
+        ["thread.create", "thread.turn.start"],
+      );
+      const createCommand = dispatchedCommands[0];
+      const turnStartCommand = dispatchedCommands[1];
+      assertTrue(createCommand?.type === "thread.create");
+      assertTrue(turnStartCommand?.type === "thread.turn.start");
+      if (createCommand?.type === "thread.create") {
+        assert.equal(createCommand.projectId, defaultProjectId);
+        assert.equal(createCommand.threadId, ThreadId.make("thread-http-bootstrap"));
+      }
+      if (turnStartCommand?.type === "thread.turn.start") {
+        assert.equal(turnStartCommand.bootstrap, undefined);
+      }
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
   it.effect("proxies browser OTLP trace exports through the server", () =>
     Effect.gen(function* () {
       const upstreamRequests: Array<{
