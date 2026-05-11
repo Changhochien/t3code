@@ -4,10 +4,10 @@ This document describes how to keep the `pi-feature` branch synchronized with up
 
 ## Branch Overview
 
-| Branch | Purpose | Push URL |
-|--------|---------|----------|
-| `main` | Clean mirror of pingdotgg/t3code | read-only |
-| `pi-feature` | Pi agent implementation | Changhochien/t3code |
+| Branch       | Purpose                          | Push URL            |
+| ------------ | -------------------------------- | ------------------- |
+| `main`       | Clean mirror of pingdotgg/t3code | read-only           |
+| `pi-feature` | Pi agent implementation          | Changhochien/t3code |
 
 ## Updating Main (Always Fast-Forward)
 

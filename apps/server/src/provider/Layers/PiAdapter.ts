@@ -12,6 +12,7 @@ import {
   type CanonicalItemType,
   type CanonicalRequestType,
   EventId,
+  ProviderDriverKind,
   type ProviderApprovalDecision,
   type ProviderRuntimeEvent,
   type ProviderRuntimeTurnStatus,
@@ -49,7 +50,7 @@ import { PiAdapter, type PiAdapterShape } from "../Services/PiAdapter.ts";
 import { type EventNdjsonLogger } from "./EventNdjsonLogger.ts";
 import { PiQueryRuntime } from "./PiQueryRuntime.ts";
 
-const PROVIDER = "pi" as const;
+const PROVIDER = ProviderDriverKind.make("pi");
 
 interface PiTurnState {
   readonly turnId: TurnId;

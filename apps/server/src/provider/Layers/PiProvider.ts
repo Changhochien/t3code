@@ -6,6 +6,7 @@
 import type {
   ModelCapabilities,
   PiSettings,
+  ProviderDriverKind,
   ServerProvider,
   ServerProviderModel,
   ServerProviderSkill,
@@ -30,7 +31,7 @@ import {
 import { PiProvider } from "../Services/PiProvider.ts";
 import { ChildProcessSpawner } from "effect/unstable/process";
 
-const PROVIDER = "pi" as const;
+const PROVIDER = ProviderDriverKind.make("pi");
 
 const DEFAULT_PI_MODEL_CAPABILITIES: ModelCapabilities = {
   reasoningEffortLevels: [

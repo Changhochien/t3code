@@ -7,7 +7,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
 import { Effect, Fiber, Layer, Stream } from "effect";
 
-import { ThreadId } from "@t3tools/contracts";
+import { ProviderInstanceId, ThreadId } from "@t3tools/contracts";
 
 import { ServerSettingsService } from "../../serverSettings.ts";
 import { PiAdapter } from "../Services/PiAdapter.ts";
@@ -136,7 +136,7 @@ it.layer(PiAdapterTestLayer)("PiAdapterLive", (it) => {
         cwd: process.cwd(),
         runtimeMode: "full-access",
         modelSelection: {
-          provider: "pi",
+          instanceId: ProviderInstanceId.make("pi"),
           model: "minimax/MiniMax-M2.7",
         },
       });
@@ -194,7 +194,7 @@ it.layer(PiAdapterTestLayer)("PiAdapterLive", (it) => {
         cwd: process.cwd(),
         runtimeMode: "full-access",
         modelSelection: {
-          provider: "pi",
+          instanceId: ProviderInstanceId.make("pi"),
           model: "minimax/MiniMax-M2.7",
         },
       });
@@ -204,7 +204,7 @@ it.layer(PiAdapterTestLayer)("PiAdapterLive", (it) => {
         input: "hello mock",
         attachments: [],
         modelSelection: {
-          provider: "pi",
+          instanceId: ProviderInstanceId.make("pi"),
           model: "minimax/MiniMax-M2.7",
           options: {
             effort: "high",
@@ -245,7 +245,7 @@ it.layer(PiAdapterTestLayer)("PiAdapterLive", (it) => {
         cwd: process.cwd(),
         runtimeMode: "full-access",
         modelSelection: {
-          provider: "pi",
+          instanceId: ProviderInstanceId.make("pi"),
           model: "minimax/MiniMax-M2.7",
         },
       });

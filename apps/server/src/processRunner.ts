@@ -1,5 +1,6 @@
+// @effect-diagnostics nodeBuiltinImport:off
 import { type ChildProcess as ChildProcessHandle, spawn, spawnSync } from "node:child_process";
-
+import * as NodeTimers from "node:timers";
 export interface ProcessRunOptions {
   cwd?: string | undefined;
   timeoutMs?: number | undefined;
@@ -37,10 +38,23 @@ function normalizeSpawnError(command: string, args: readonly string[], error: un
   return new Error(`Failed to run ${commandLabel(command, args)}: ${error.message}`);
 }
 
+const WINDOWS_COMMAND_NOT_FOUND_PATTERNS = [
+  /is not recognized as an internal or external command/i,
+  /n.o . reconhecido como um comando interno/i,
+  /non . riconosciuto come comando interno o esterno/i,
+  /n.est pas reconnu en tant que commande interne/i,
+  /no se reconoce como un comando interno o externo/i,
+  /wird nicht als interner oder externer befehl/i,
+] as const;
+
+function hasWindowsCommandNotFoundMessage(output: string): boolean {
+  return WINDOWS_COMMAND_NOT_FOUND_PATTERNS.some((pattern) => pattern.test(output));
+}
+
 export function isWindowsCommandNotFound(code: number | null, stderr: string): boolean {
   if (process.platform !== "win32") return false;
   if (code === 9009) return true;
-  return /is not recognized as an internal or external command/i.test(stderr);
+  return hasWindowsCommandNotFoundMessage(stderr);
 }
 
 function normalizeExitError(
@@ -150,12 +164,14 @@ export async function runProcess(
     let stderrTruncated = false;
     let timedOut = false;
     let settled = false;
-    let forceKillTimer: ReturnType<typeof setTimeout> | null = null;
+    let forceKillTimer: ReturnType<typeof NodeTimers.setTimeout> | null = null;
 
-    const timeoutTimer = setTimeout(() => {
+    // @effect-diagnostics-next-line globalTimers:off - Promise/child_process boundary; moving this runner to Effect timers is a separate refactor.
+    const timeoutTimer = NodeTimers.setTimeout(() => {
       timedOut = true;
       killChild(child, "SIGTERM");
-      forceKillTimer = setTimeout(() => {
+      // @effect-diagnostics-next-line globalTimers:off - Promise/child_process boundary; see timeout timer above.
+      forceKillTimer = NodeTimers.setTimeout(() => {
         killChild(child, "SIGKILL");
       }, 1_000);
     }, timeoutMs);
@@ -163,9 +179,9 @@ export async function runProcess(
     const finalize = (callback: () => void): void => {
       if (settled) return;
       settled = true;
-      clearTimeout(timeoutTimer);
+      NodeTimers.clearTimeout(timeoutTimer);
       if (forceKillTimer) {
-        clearTimeout(forceKillTimer);
+        NodeTimers.clearTimeout(forceKillTimer);
       }
       callback();
     };
